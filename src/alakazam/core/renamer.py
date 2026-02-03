@@ -14,7 +14,7 @@ from alakazam.types.registry import TypeRegistry
 
 
 @dataclass
-class AlazazamConfig:
+class AlakazamConfig:
     """Configuration for Alakazam renamer."""
 
     batch_size: int = 5
@@ -38,7 +38,7 @@ class Alakazam:
         storage: StorageBackend,
         tracker: FileTracker,
         type_registry: TypeRegistry,
-        config: Optional[AlazazamConfig] = None,
+        config: Optional[AlakazamConfig] = None,
     ):
         """
         Initialize Alakazam renamer.
@@ -56,7 +56,7 @@ class Alakazam:
         self.storage = storage
         self.tracker = tracker
         self.types = type_registry
-        self.config = config or AlazazamConfig()
+        self.config = config or AlakazamConfig()
 
     async def process_batch(self, batch_size: Optional[int] = None) -> ProcessingResult:
         """

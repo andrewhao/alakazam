@@ -79,8 +79,9 @@ class JSONTracker(FileTracker):
 
     async def _save(self) -> None:
         """Save log file."""
-        with open(self.log_file, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
+        import aiofiles
+        async with aiofiles.open(self.log_file, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(self.data, indent=2, ensure_ascii=False))
 
     def __repr__(self) -> str:
         return f"JSONTracker(log_file={self.log_file}, entries={len(self.data.get('renames', []))})"
