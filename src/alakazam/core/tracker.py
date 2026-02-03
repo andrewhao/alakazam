@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Set
 
+import aiofiles
+
 
 class FileTracker(ABC):
     """Abstract base class for file tracking."""
@@ -79,7 +81,6 @@ class JSONTracker(FileTracker):
 
     async def _save(self) -> None:
         """Save log file."""
-        import aiofiles
         async with aiofiles.open(self.log_file, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(self.data, indent=2, ensure_ascii=False))
 

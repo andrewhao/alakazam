@@ -111,6 +111,18 @@ class TestISODateNamingTruncation:
         assert result == "2024-01-15.pdf"
         assert len(result) == 14
 
+    def test_truncation_max_length_too_small(self):
+        """Test that truncation raises error when max_length is impossibly small."""
+        naming = ISODateNaming(max_length=10)  # Too small for date+ext
+
+        date = "2024-01-15"
+        description = "description"
+        ext = ".pdf"
+
+        # date+ext requires 14 chars minimum
+        with pytest.raises(ValueError, match="max_length.*too small"):
+            naming._truncate(date, description, ext)
+
 
 class TestISODateNamingValidation:
     """Test validation logic."""

@@ -97,6 +97,14 @@ class ISODateNaming(NamingStrategy):
 
     def _truncate(self, date: str, description: str, ext: str) -> str:
         """Intelligently truncate filename to max_length."""
+        # Check if even date+ext fits
+        min_length = len(date) + len(ext)
+        if self.max_length < min_length:
+            raise ValueError(
+                f"max_length ({self.max_length}) is too small for date+extension "
+                f"({min_length} chars minimum)"
+            )
+
         # Calculate available space for description
         fixed_length = len(date) + len(ext) + 1  # +1 for space between date and description
         available = self.max_length - fixed_length

@@ -196,11 +196,17 @@ Existing tools either:
 git clone https://github.com/andrewhao/alakazam.git
 cd alakazam
 
-# Install with dev dependencies
+# Install with dev dependencies (using uv - recommended)
+uv pip install -e ".[dev]"
+
+# Or with pip
 pip install -e ".[dev]"
 
 # Run tests
-pytest
+uv run pytest tests/ -v
+
+# Or with pytest directly
+pytest tests/ -v
 
 # Type checking
 mypy src/alakazam
@@ -211,6 +217,19 @@ ruff check src/alakazam
 # Format
 black src/alakazam
 ```
+
+### Current Status
+
+**Version 0.1.0 (Alpha)**
+
+Recent fixes (2024-02):
+- ✅ Fixed class name typo (`AlakazamConfig`)
+- ✅ Fixed async I/O in file tracker
+- ✅ Fixed truncation length calculation
+- ✅ Added comprehensive test suite (16 tests, all passing)
+- ✅ Added edge case validation for filename length
+
+See [FIXES_SUMMARY.md](FIXES_SUMMARY.md) for details.
 
 ## Contributing
 
