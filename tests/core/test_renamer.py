@@ -1,7 +1,15 @@
 """Tests for Alakazam core renamer."""
 
+from pathlib import Path
+from typing import Dict, Optional
+
 import pytest
-from alakazam.core.renamer import AlakazamConfig, Alakazam
+
+from alakazam.core.renamer import Alakazam, AlakazamConfig
+from alakazam.core.tracker import JSONTracker
+from alakazam.naming import ISODateNaming
+from alakazam.storage import LocalStorage
+from alakazam.types import TypeRegistry
 
 
 class TestAlakazamConfig:
@@ -37,3 +45,39 @@ class TestAlakazamConfig:
         assert AlakazamConfig.__name__ == "AlakazamConfig"
         assert "Alakazam" in AlakazamConfig.__name__
         assert "Alazazam" not in AlakazamConfig.__name__
+
+
+class MissingDateAnalyzer:
+    """Analyzer that omits document_date to test error handling."""
+
+    async def analyze(self, document_path: Path) -> Optional[Dict]:
+        return {
+            "document_type": "invoice",
+            "description": "Missing date",
+        }
+
+    def validate_config(self) -> bool:
+        return True
+
+
+@pytest.mark.asyncio
+async def test_process_batch_missing_document_date_returns_error(tmp_path: Path):
+    """Return a clear error when analysis lacks document_date."""
+    pdf_path = tmp_path / "test.pdf"
+    pdf_path.write_text("fake pdf content")
+
+    log_file = tmp_path / ".alakazam.log"
+
+    alakazam = Alakazam(
+        analyzer=MissingDateAnalyzer(),
+        naming_strategy=ISODateNaming(),
+        storage=LocalStorage(tmp_path),
+        tracker=JSONTracker(log_file),
+        type_registry=TypeRegistry(),
+        config=AlakazamConfig(batch_size=5, dry_run=True, verbose=False),
+    )
+
+    result = await alakazam.process_batch()
+
+    assert result.error_count == 1
+    assert result.files[0].error == "Analysis missing required fields: document_date"
