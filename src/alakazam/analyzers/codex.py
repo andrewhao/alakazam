@@ -150,7 +150,7 @@ class CodexAnalyzer(DocumentAnalyzer):
         Call Codex CLI with PDF file.
 
         Uses:
-          codex exec --sandbox read-only --ask-for-approval never --output-last-message <file> -
+          codex exec --sandbox read-only --output-last-message <file> -
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir_path = Path(temp_dir)
@@ -168,17 +168,16 @@ class CodexAnalyzer(DocumentAnalyzer):
                 "exec",
                 "--cd",
                 str(temp_dir_path),
+                "--skip-git-repo-check",
                 "--sandbox",
                 "read-only",
-                "--ask-for-approval",
-                "never",
                 "--output-last-message",
                 str(output_path),
                 "-",
             ]
 
             if self.verbose:
-                print("   Running: codex exec --sandbox read-only --ask-for-approval never")
+                print("   Running: codex exec --sandbox read-only")
                 print(f"   Working directory: {temp_dir_path}")
                 print(f"   PDF file: {temp_work_pdf}")
 

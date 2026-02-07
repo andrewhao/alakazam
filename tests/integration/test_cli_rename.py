@@ -49,3 +49,24 @@ def test_cli_rename_dry_run_processes_files(monkeypatch, tmp_path: Path):
     assert "Dry run: 2" in result.output
     assert len(instances) == 1
     assert len(instances[0].calls) == 2
+
+
+def test_cli_rename_uses_codex_analyzer(monkeypatch, tmp_path: Path):
+    """--analyzer codex should select CodexAnalyzer."""
+    (tmp_path / "one.pdf").write_text("fake")
+
+    instances = []
+
+    class FakeCodexAnalyzer(FakeAnalyzer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            instances.append(self)
+
+    monkeypatch.setattr("alakazam.cli.main.CodexAnalyzer", FakeCodexAnalyzer)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--analyzer", "codex"])
+
+    assert result.exit_code == 0
+    assert "Dry run: 1" in result.output
+    assert len(instances) == 1

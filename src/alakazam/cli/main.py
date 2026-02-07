@@ -7,7 +7,7 @@ import click
 from rich.console import Console
 
 from alakazam import Alakazam
-from alakazam.analyzers import ClaudeCodeAnalyzer
+from alakazam.analyzers import ClaudeCodeAnalyzer, CodexAnalyzer
 from alakazam.core import AlakazamConfig, JSONTracker
 from alakazam.naming import ISODateNaming
 from alakazam.storage import LocalStorage
@@ -29,7 +29,14 @@ def cli():
 @click.option("--dry-run", is_flag=True, help="Preview without renaming")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 @click.option("--continuous", is_flag=True, help="Process all files")
-def rename(path, batch_size, dry_run, verbose, continuous):
+@click.option(
+    "--analyzer",
+    type=click.Choice(["claude_code", "codex"], case_sensitive=False),
+    default="claude_code",
+    show_default=True,
+    help="Analyzer to use",
+)
+def rename(path, batch_size, dry_run, verbose, continuous, analyzer):
     """Rename documents in PATH using AI analysis."""
     console.print("\n[bold cyan]✨ Alakazam - AI Document Renamer[/bold cyan]\n")
 
@@ -44,16 +51,19 @@ def rename(path, batch_size, dry_run, verbose, continuous):
     console.print(f"Continuous: {continuous}\n")
 
     type_registry = TypeRegistry()
-    analyzer = ClaudeCodeAnalyzer(verbose=verbose, type_registry=type_registry)
+    if analyzer == "codex":
+        analyzer_instance = CodexAnalyzer(verbose=verbose, type_registry=type_registry)
+    else:
+        analyzer_instance = ClaudeCodeAnalyzer(verbose=verbose, type_registry=type_registry)
 
-    if not analyzer.validate_config():
-        console.print("[red]✗ Claude CLI not found.[/red]")
-        console.print("Install Claude Code CLI and log in to use this analyzer.")
+    if not analyzer_instance.validate_config():
+        console.print(f"[red]✗ {analyzer_instance.__class__.__name__} CLI not found.[/red]")
+        console.print("Install the CLI and log in to use this analyzer.")
         raise SystemExit(1)
 
     config = AlakazamConfig(batch_size=batch_size, dry_run=dry_run, verbose=verbose)
     alakazam = Alakazam(
-        analyzer=analyzer,
+        analyzer=analyzer_instance,
         naming_strategy=ISODateNaming(max_length=80, title_case=True),
         storage=LocalStorage(target_path),
         tracker=JSONTracker(log_file),
