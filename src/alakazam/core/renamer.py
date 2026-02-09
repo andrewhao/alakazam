@@ -110,6 +110,13 @@ class Alakazam:
             if not analysis:
                 return FileResult.error(file_path.name, "Analysis failed")
 
+            missing_fields = [f for f in ["document_date"] if not analysis.get(f)]
+            if missing_fields:
+                return FileResult.error(
+                    file_path.name,
+                    f"Analysis missing required fields: {', '.join(missing_fields)}",
+                )
+
             # 2. Check document type
             doc_type = analysis.get('document_type', 'unknown')
             if not self.types.is_standard(doc_type):
