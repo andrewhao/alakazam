@@ -126,3 +126,24 @@ async def test_interactive_decision_skips_file(tmp_path: Path):
     result = await alakazam.process_batch()
 
     assert result.skipped_count == 1
+
+
+def test_interactive_mode_without_decision_provider_raises_error(tmp_path: Path):
+    """Interactive mode without decision provider should raise ValueError at init."""
+
+    class FakeAnalyzer:
+        def validate_config(self) -> bool:
+            return True
+
+    log_file = tmp_path / ".alakazam.log"
+
+    with pytest.raises(ValueError, match="decision_provider is required"):
+        Alakazam(
+            analyzer=FakeAnalyzer(),
+            naming_strategy=ISODateNaming(),
+            storage=LocalStorage(tmp_path),
+            tracker=JSONTracker(log_file),
+            type_registry=TypeRegistry(),
+            config=AlakazamConfig(interactive=True),
+            decision_provider=None,
+        )

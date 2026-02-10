@@ -21,7 +21,6 @@ class FileTracker(ABC):
         """Record a rename operation."""
         pass
 
-    @abstractmethod
     async def record_decision(
         self,
         old_name: str,
@@ -32,13 +31,20 @@ class FileTracker(ABC):
         analysis: Dict,
         dry_run: bool,
     ) -> None:
-        """Record an interactive naming decision."""
+        """
+        Record an interactive naming decision.
+
+        Default implementation does nothing. Subclasses can override to track decisions.
+        """
         pass
 
-    @abstractmethod
     def get_override_examples(self, limit: int = 5) -> list:
-        """Return recent examples of user overrides."""
-        pass
+        """
+        Return recent examples of user overrides.
+
+        Default implementation returns empty list. Subclasses can override to provide examples.
+        """
+        return []
 
 
 class JSONTracker(FileTracker):

@@ -59,7 +59,16 @@ class DocumentAnalyzer(ABC):
         pass
 
     def set_naming_preferences(self, preferences: Optional[str]) -> None:
-        """Set optional naming preferences or override examples."""
+        """
+        Set optional naming preferences or override examples for the analyzer.
+
+        This method allows injecting user preference examples from past rename
+        decisions to help the AI model learn and adapt to user's naming patterns.
+
+        Args:
+            preferences: Formatted text describing user's naming preferences,
+                        typically showing suggested vs. chosen filename examples
+        """
         self.naming_preferences = preferences
 
     def __repr__(self) -> str:

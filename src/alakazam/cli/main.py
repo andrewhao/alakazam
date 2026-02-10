@@ -116,12 +116,32 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
 
 
 def _build_decision_provider(naming_strategy, storage, dry_run: bool):
+    """
+    Build an interactive decision provider callback for rename operations.
+
+    Creates a callback that prompts the user to choose from suggested names,
+    edit filenames, or skip files. Validates choices and checks for collisions.
+
+    Args:
+        naming_strategy: Strategy to validate filename formats
+        storage: Storage backend to check for existing files
+        dry_run: If True, indicates collision checks are simulated
+
+    Returns:
+        Async callback function that takes (file_path, analysis, suggested_name,
+        alternative_names) and returns a decision dict with action and chosen_name.
+    """
     async def decision_provider(file_path, analysis, suggested_name, alternative_names):
         options = [suggested_name] + [
             name for name in alternative_names if name != suggested_name
         ]
 
-        while True:
+        max_attempts = 10
+        attempt = 0
+
+        while attempt < max_attempts:
+            attempt += 1
+
             click.echo(f"\nFile: {file_path.name}")
             click.echo("Choose a filename:")
             for idx, name in enumerate(options, 1):
@@ -148,8 +168,9 @@ def _build_decision_provider(naming_strategy, storage, dry_run: bool):
                 if not naming_strategy.validate(edited):
                     click.echo("Invalid filename format. Please try again.")
                     continue
-                if not dry_run and await storage.exists(file_path.parent / edited):
-                    click.echo("Filename already exists. Please choose another.")
+                if await storage.exists(file_path.parent / edited):
+                    suffix = " (simulated)" if dry_run else ""
+                    click.echo(f"Filename already exists{suffix}. Please choose another.")
                     continue
                 return {
                     "action": "edit",
@@ -165,8 +186,9 @@ def _build_decision_provider(naming_strategy, storage, dry_run: bool):
                     if not naming_strategy.validate(selected):
                         click.echo("Invalid filename format. Please try again.")
                         continue
-                    if not dry_run and await storage.exists(file_path.parent / selected):
-                        click.echo("Filename already exists. Please choose another.")
+                    if await storage.exists(file_path.parent / selected):
+                        suffix = " (simulated)" if dry_run else ""
+                        click.echo(f"Filename already exists{suffix}. Please choose another.")
                         continue
                     action = "accept" if index == 0 else "alternate"
                     return {
@@ -178,10 +200,29 @@ def _build_decision_provider(naming_strategy, storage, dry_run: bool):
 
             click.echo("Invalid selection. Please try again.")
 
+        # Max attempts exceeded - auto-skip
+        click.echo(f"Maximum attempts ({max_attempts}) exceeded. Skipping file.")
+        return {
+            "action": "skip",
+            "chosen_name": None,
+            "suggested_name": suggested_name,
+            "alternative_names": options[1:],
+        }
+
     return decision_provider
 
 
 def _format_override_preferences(overrides):
+    """
+    Format user override examples into a text summary for AI feedback.
+
+    Args:
+        overrides: List of override dicts with suggested_name, chosen_name,
+                   document_type, and metadata fields
+
+    Returns:
+        Formatted string showing suggested -> chosen name patterns with metadata
+    """
     lines = []
     for entry in overrides:
         suggested = entry.get("suggested_name")
