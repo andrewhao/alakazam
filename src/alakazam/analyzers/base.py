@@ -58,5 +58,9 @@ class DocumentAnalyzer(ABC):
         """
         pass
 
+    def set_naming_preferences(self, preferences: Optional[str]) -> None:
+        """Set optional naming preferences or override examples."""
+        self.naming_preferences = preferences
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
