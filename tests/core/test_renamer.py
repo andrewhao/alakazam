@@ -81,3 +81,48 @@ async def test_process_batch_missing_document_date_returns_error(tmp_path: Path)
 
     assert result.error_count == 1
     assert result.files[0].error == "Analysis missing required fields: document_date"
+
+
+@pytest.mark.asyncio
+async def test_interactive_decision_skips_file(tmp_path: Path):
+    """Interactive decision provider should be able to skip a file."""
+
+    class FakeAnalyzer:
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return {
+                "document_date": "2024-01-01",
+                "document_type": "invoice",
+                "description": "Test",
+                "alternative_filenames": ["2024-01-01 Test Alt.pdf"],
+            }
+
+        def validate_config(self) -> bool:
+            return True
+
+    class Decision:
+        action = "skip"
+        chosen_name = None
+        suggested_name = "2024-01-01 Test.pdf"
+        alternative_names = ["2024-01-01 Test Alt.pdf"]
+
+    async def decide(*args, **kwargs):
+        return Decision()
+
+    pdf_path = tmp_path / "test.pdf"
+    pdf_path.write_text("fake pdf content")
+
+    log_file = tmp_path / ".alakazam.log"
+
+    alakazam = Alakazam(
+        analyzer=FakeAnalyzer(),
+        naming_strategy=ISODateNaming(),
+        storage=LocalStorage(tmp_path),
+        tracker=JSONTracker(log_file),
+        type_registry=TypeRegistry(),
+        config=AlakazamConfig(batch_size=1, dry_run=True, verbose=False, interactive=True),
+        decision_provider=decide,
+    )
+
+    result = await alakazam.process_batch()
+
+    assert result.skipped_count == 1
