@@ -87,3 +87,34 @@ class TestJSONTrackerAsyncIO:
         assert "naïve" in content
         assert "résumé" in content
         assert "日本語" in content
+
+    @pytest.mark.asyncio
+    async def test_record_decision_and_get_override_examples(self, tmp_path):
+        """Test decision logging and override example extraction."""
+        log_file = tmp_path / "log.json"
+        tracker = JSONTracker(log_file)
+
+        await tracker.record_decision(
+            old_name="old.pdf",
+            suggested_name="2024-01-01 Acme Invoice.pdf",
+            alternative_names=["2024-01-01 Acme Statement.pdf"],
+            chosen_name="2024-01-01 Acme Statement.pdf",
+            decision="alternate",
+            analysis={
+                "document_date": "2024-01-01",
+                "document_type": "invoice",
+                "description": "Acme invoice",
+                "metadata": {"provider": "Acme"},
+            },
+            dry_run=True,
+        )
+
+        overrides = tracker.get_override_examples(limit=5)
+        assert overrides == [
+            {
+                "suggested_name": "2024-01-01 Acme Invoice.pdf",
+                "chosen_name": "2024-01-01 Acme Statement.pdf",
+                "document_type": "invoice",
+                "metadata": {"provider": "Acme"},
+            }
+        ]

@@ -21,6 +21,25 @@ class FileTracker(ABC):
         """Record a rename operation."""
         pass
 
+    @abstractmethod
+    async def record_decision(
+        self,
+        old_name: str,
+        suggested_name: str,
+        alternative_names: list,
+        chosen_name: str | None,
+        decision: str,
+        analysis: Dict,
+        dry_run: bool,
+    ) -> None:
+        """Record an interactive naming decision."""
+        pass
+
+    @abstractmethod
+    def get_override_examples(self, limit: int = 5) -> list:
+        """Return recent examples of user overrides."""
+        pass
+
 
 class JSONTracker(FileTracker):
     """
@@ -48,6 +67,7 @@ class JSONTracker(FileTracker):
         return {
             "metadata": {"version": "1.0"},
             "renames": [],
+            "decisions": [],
         }
 
     def get_processed_files(self) -> Set[str]:
@@ -78,6 +98,52 @@ class JSONTracker(FileTracker):
 
         # Save to file
         await self._save()
+
+    async def record_decision(
+        self,
+        old_name: str,
+        suggested_name: str,
+        alternative_names: list,
+        chosen_name: str | None,
+        decision: str,
+        analysis: Dict,
+        dry_run: bool,
+    ) -> None:
+        """Record an interactive naming decision in the log."""
+        entry = {
+            "old_name": old_name,
+            "suggested_name": suggested_name,
+            "alternative_names": alternative_names or [],
+            "chosen_name": chosen_name,
+            "decision": decision,
+            "dry_run": dry_run,
+            "document_date": analysis.get('document_date'),
+            "document_type": analysis.get('document_type'),
+            "description": analysis.get('description'),
+        }
+
+        if 'metadata' in analysis and analysis['metadata']:
+            entry['metadata'] = analysis['metadata']
+
+        self.data.setdefault('decisions', []).append(entry)
+        await self._save()
+
+    def get_override_examples(self, limit: int = 5) -> list:
+        """Return recent examples where chosen name differs from suggestion."""
+        examples = []
+        for entry in reversed(self.data.get('decisions', [])):
+            if entry.get('chosen_name') and entry.get('chosen_name') != entry.get('suggested_name'):
+                examples.append(
+                    {
+                        "suggested_name": entry.get('suggested_name'),
+                        "chosen_name": entry.get('chosen_name'),
+                        "document_type": entry.get('document_type'),
+                        "metadata": entry.get('metadata', {}),
+                    }
+                )
+            if len(examples) >= limit:
+                break
+        return list(reversed(examples))
 
     async def _save(self) -> None:
         """Save log file."""
