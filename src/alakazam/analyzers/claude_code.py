@@ -66,6 +66,7 @@ class ClaudeCodeAnalyzer(DocumentAnalyzer):
         self.timeout = timeout
         self.verbose = verbose
         self.type_registry = type_registry
+        self.naming_preferences: Optional[str] = None
 
     async def analyze(self, document_path: Path) -> Optional[Dict]:
         """
@@ -333,6 +334,13 @@ class ClaudeCodeAnalyzer(DocumentAnalyzer):
                 "insurance_claim, bank_statement, contract, letter"
             )
 
+        preferences_section = ""
+        if self.naming_preferences:
+            preferences_section = (
+                "\nRecent user overrides (follow these preferences when reasonable):\n"
+                f"{self.naming_preferences}\n"
+            )
+
         return f"""Analyze this PDF document and extract the following information:
 
 1. **Document Date**: The actual date ON the document (not the scan date). Look for dates in headers, "Date:" fields, etc. Format: YYYY-MM-DD
@@ -360,12 +368,22 @@ class ClaudeCodeAnalyzer(DocumentAnalyzer):
    - amounts, invoice numbers, claim numbers, etc.
    - any other relevant identifying information
 
+5. **Alternative Filenames**: Provide 2-3 alternative filename suggestions
+   - Must be valid filenames and follow the same format
+   - Keep under 80 characters
+   - Make them meaningfully different (e.g., include/exclude a person name or ID)
+
+{preferences_section}
 Return your response in this exact JSON format (no other text):
 {{
   "document_date": "YYYY-MM-DD",
   "document_type": "category",
   "new_filename": "YYYY-MM-DD Descriptive Name.pdf",
   "description": "Brief human-readable description",
+  "alternative_filenames": [
+    "YYYY-MM-DD Alternate Name.pdf",
+    "YYYY-MM-DD Another Variant.pdf"
+  ],
   "metadata": {{
     "key": "value"
   }}

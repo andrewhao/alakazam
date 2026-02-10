@@ -1,9 +1,10 @@
 """Main Alakazam orchestrator for document renaming."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional, Union
 
 from alakazam.analyzers.base import DocumentAnalyzer
 from alakazam.core.result import FileResult, ProcessingResult, ResultStatus
@@ -11,6 +12,8 @@ from alakazam.core.tracker import FileTracker
 from alakazam.naming.base import NamingStrategy
 from alakazam.storage.base import StorageBackend
 from alakazam.types.registry import TypeRegistry
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,6 +25,18 @@ class AlakazamConfig:
     safe_mode: bool = False  # Save after each file
     max_batches: int = 1000
     verbose: bool = False
+    interactive: bool = False
+
+
+@dataclass
+class NamingDecision:
+    """User decision for interactive naming."""
+
+    action: str
+    chosen_name: Optional[str]
+    suggested_name: str
+    alternative_names: List[str]
+    reason: Optional[str] = None
 
 
 class Alakazam:
@@ -39,6 +54,9 @@ class Alakazam:
         tracker: FileTracker,
         type_registry: TypeRegistry,
         config: Optional[AlakazamConfig] = None,
+        decision_provider: Optional[
+            Callable[[Path, dict, str, List[str]], Awaitable[Union[NamingDecision, dict]]]
+        ] = None,
     ):
         """
         Initialize Alakazam renamer.
@@ -50,6 +68,10 @@ class Alakazam:
             tracker: File tracker for preventing duplicates
             type_registry: Registry for document types
             config: Configuration options
+            decision_provider: Optional callback for interactive decision making
+
+        Raises:
+            ValueError: If interactive mode is enabled but decision_provider is None
         """
         self.analyzer = analyzer
         self.naming = naming_strategy
@@ -57,6 +79,13 @@ class Alakazam:
         self.tracker = tracker
         self.types = type_registry
         self.config = config or AlakazamConfig()
+        self.decision_provider = decision_provider
+
+        # Validate configuration
+        if self.config.interactive and decision_provider is None:
+            raise ValueError(
+                "decision_provider is required when config.interactive=True"
+            )
 
     async def process_batch(self, batch_size: Optional[int] = None) -> ProcessingResult:
         """
@@ -125,7 +154,69 @@ class Alakazam:
                 self.types.register_suggestion(doc_type, analysis.get('new_filename', ''))
 
             # 3. Generate new filename
-            new_name = self.naming.generate_filename(analysis, file_path.name)
+            suggested_name = self.naming.generate_filename(analysis, file_path.name)
+            alternative_names = analysis.get("alternative_filenames") or []
+            if not isinstance(alternative_names, list):
+                alternative_names = []
+
+            # Validate alternatives and log warnings for invalid ones
+            valid_alternatives = []
+            for name in alternative_names:
+                if self.naming.validate(name):
+                    valid_alternatives.append(name)
+                else:
+                    logger.warning(
+                        f"Analyzer returned invalid alternative filename: {name!r} "
+                        f"for file {file_path.name}"
+                    )
+            alternative_names = valid_alternatives
+
+            new_name = suggested_name
+
+            # 3b. Interactive decision
+            if self.config.interactive:
+                # decision_provider is guaranteed to exist (validated in __init__)
+                decision = await self.decision_provider(
+                    file_path, analysis, suggested_name, alternative_names
+                )
+                # Support both dict and NamingDecision for backwards compatibility
+                if isinstance(decision, dict):
+                    action = decision.get("action", "accept")
+                    chosen_name = decision.get("chosen_name", None)
+                    suggested_name = decision.get("suggested_name", suggested_name)
+                    alternative_names = decision.get("alternative_names", alternative_names) or []
+                else:
+                    action = decision.action
+                    chosen_name = decision.chosen_name
+                    suggested_name = decision.suggested_name
+                    alternative_names = decision.alternative_names or []
+
+                if action == "skip":
+                    await self.tracker.record_decision(
+                        old_name=file_path.name,
+                        suggested_name=suggested_name,
+                        alternative_names=alternative_names,
+                        chosen_name=None,
+                        decision="skip",
+                        analysis=analysis,
+                        dry_run=self.config.dry_run,
+                    )
+                    return FileResult.skipped(file_path.name, "Skipped by user")
+
+                if not chosen_name:
+                    chosen_name = suggested_name
+
+                new_name = chosen_name
+
+                await self.tracker.record_decision(
+                    old_name=file_path.name,
+                    suggested_name=suggested_name,
+                    alternative_names=alternative_names,
+                    chosen_name=new_name,
+                    decision=action,
+                    analysis=analysis,
+                    dry_run=self.config.dry_run,
+                )
 
             if not self.naming.validate(new_name):
                 return FileResult.error(file_path.name, f"Invalid filename: {new_name}")

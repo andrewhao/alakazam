@@ -70,3 +70,38 @@ def test_cli_rename_uses_codex_analyzer(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0
     assert "Dry run: 1" in result.output
     assert len(instances) == 1
+
+
+def test_cli_rename_interactive_dry_run_accepts_default(monkeypatch, tmp_path: Path):
+    """Interactive dry-run should accept the default suggestion."""
+    (tmp_path / "one.pdf").write_text("fake")
+    (tmp_path / "two.pdf").write_text("fake")
+
+    class FakeAnalyzer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return {
+                "document_date": "2024-01-15",
+                "document_type": "invoice",
+                "new_filename": f"2024-01-15 Test {document_path.stem}.pdf",
+                "description": f"Test {document_path.stem}",
+                "alternative_filenames": ["2024-01-15 Alt Name.pdf"],
+                "metadata": {},
+            }
+
+        def validate_config(self) -> bool:
+            return True
+
+    monkeypatch.setattr("alakazam.cli.main.ClaudeCodeAnalyzer", FakeAnalyzer)
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["rename", str(tmp_path), "--dry-run", "--interactive"],
+        input="1\n1\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Dry run: 2" in result.output

@@ -52,3 +52,6 @@ dmypy.json
 # Alakazam specific
 *.log
 rename_log.json
+
+# Git worktrees
+.worktrees/
