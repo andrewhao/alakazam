@@ -55,3 +55,6 @@ rename_log.json
 
 # Git worktrees
 .worktrees/
+
+# Local tooling
+.claude/

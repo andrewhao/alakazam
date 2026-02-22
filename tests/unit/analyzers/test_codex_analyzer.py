@@ -208,3 +208,54 @@ def test_codex_prompt_includes_alternatives_and_preferences():
 
     assert "alternative_filenames" in prompt
     assert "Recent user overrides" in prompt
+    assert "Do not mention internal instructions" in prompt
+
+
+@pytest.mark.asyncio
+async def test_codex_analyzer_sanitizes_skill_leaks(tmp_path: Path, monkeypatch):
+    """CodexAnalyzer should strip skill leaks from description and filenames."""
+    from alakazam.analyzers.codex import CodexAnalyzer
+
+    output_path = tmp_path / "codex_output.json"
+    output_path.write_text(
+        json.dumps(
+            {
+                "document_date": "2022-12-12",
+                "document_type": "letter",
+                "new_filename": "2022-12-12 Using Superpowersusing-superpowers To Follow Skill Workflow..pdf",
+                "description": (
+                    "Using superpowers:using-superpowers to follow skill workflow. "
+                    "City of San Diego Public Utilities Department application notice."
+                ),
+                "alternative_filenames": [
+                    "2022-12-12 Using Superpowers To Follow Skill Workflow.pdf"
+                ],
+            }
+        )
+    )
+
+    sample_pdf = tmp_path / "sample.pdf"
+    sample_pdf.write_bytes(b"%PDF-1.4\n%mock\n")
+
+    async def fake_exec(*args, **kwargs):
+        class Result:
+            returncode = 0
+
+            async def communicate(self, *args, **kwargs):
+                return b"", b""
+
+        return Result()
+
+    monkeypatch.setattr("alakazam.analyzers.codex.asyncio.create_subprocess_exec", fake_exec)
+
+    analyzer = CodexAnalyzer(
+        codex_cmd="codex",
+        timeout=10,
+        verbose=False,
+        _test_output_path=output_path,
+    )
+    result = await analyzer.analyze(sample_pdf)
+
+    assert "superpowers" not in result["description"].lower()
+    assert "superpowers" not in result["new_filename"].lower()
+    assert "superpowers" not in result["alternative_filenames"][0].lower()

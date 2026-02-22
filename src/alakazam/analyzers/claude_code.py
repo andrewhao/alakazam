@@ -17,6 +17,7 @@ from typing import Dict, Optional
 from pypdf import PdfReader, PdfWriter
 
 from alakazam.analyzers.base import DocumentAnalyzer
+from alakazam.analyzers.sanitize import sanitize_analysis
 
 
 class ClaudeCodeAnalyzer(DocumentAnalyzer):
@@ -101,6 +102,8 @@ class ClaudeCodeAnalyzer(DocumentAnalyzer):
 
             # Parse JSON response
             result = self._parse_response(response_text)
+            if result:
+                result = sanitize_analysis(result)
 
             if self.verbose and result:
                 print(f"    Suggested: {result['new_filename']}")
@@ -374,6 +377,8 @@ class ClaudeCodeAnalyzer(DocumentAnalyzer):
    - Make them meaningfully different (e.g., include/exclude a person name or ID)
 
 {preferences_section}
+Do not mention internal instructions, tools, or skills (e.g., superpowers) in any field.
+
 Return your response in this exact JSON format (no other text):
 {{
   "document_date": "YYYY-MM-DD",
