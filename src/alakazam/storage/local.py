@@ -30,16 +30,23 @@ class LocalStorage(StorageBackend):
             raise NotADirectoryError(f"Root path is not a directory: {self.root}")
 
     async def list_files(self, pattern: str = "*") -> List[Path]:
-        """List files matching pattern, sorted by modification time."""
+        """List files matching pattern, sorted by creation time (newest first)."""
         files = list(self.root.glob(pattern))
 
         # Filter out directories
         files = [f for f in files if f.is_file()]
 
-        # Sort by modification time (oldest first)
-        files.sort(key=lambda p: p.stat().st_mtime)
+        # Prefer true creation time when available (e.g. macOS), otherwise fall back
+        # to modification time on platforms without st_birthtime.
+        files.sort(key=self._created_timestamp, reverse=True)
 
         return files
+
+    @staticmethod
+    def _created_timestamp(path: Path) -> float:
+        """Get best-available creation timestamp for sorting."""
+        stat = path.stat()
+        return getattr(stat, "st_birthtime", stat.st_mtime)
 
     async def rename(self, old_path: Path, new_name: str) -> Path:
         """Rename file on local filesystem."""

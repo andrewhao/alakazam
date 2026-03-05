@@ -21,7 +21,7 @@ class StorageBackend(ABC):
             pattern: Glob pattern (e.g., "*.pdf", "**/*.jpg")
 
         Returns:
-            List of Path objects sorted by modification time (oldest first)
+            List of Path objects sorted by creation time (newest first)
         """
         pass
 
