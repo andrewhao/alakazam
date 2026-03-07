@@ -4,7 +4,7 @@ This plan outlines the steps to add Google Gemini support to Alakazam.
 
 ## Phase 1: Environment and Dependencies
 - [x] Task: Add `google-generativeai` to `project.optional-dependencies` in `pyproject.toml` as part of a new `gemini` extra. 83ccc6d
-- [ ] Task: Update `uv.lock` by running `uv lock`.
+- [x] Task: Update `uv.lock` by running `uv lock`. f81d8f2
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Environment and Dependencies' (Protocol in workflow.md)
 
 ## Phase 2: Core Analyzer Implementation
