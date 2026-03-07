@@ -7,7 +7,7 @@ import click
 from rich.console import Console
 
 from alakazam import Alakazam
-from alakazam.analyzers import ClaudeCodeAnalyzer, CodexAnalyzer
+from alakazam.analyzers import ClaudeCodeAnalyzer, CodexAnalyzer, GeminiAnalyzer
 from alakazam.core import AlakazamConfig, JSONTracker
 from alakazam.naming import ISODateNaming
 from alakazam.storage import LocalStorage
@@ -32,7 +32,7 @@ def cli():
 @click.option("--interactive", is_flag=True, help="Prompt to confirm or edit names")
 @click.option(
     "--analyzer",
-    type=click.Choice(["claude_code", "codex"], case_sensitive=False),
+    type=click.Choice(["claude_code", "codex", "gemini"], case_sensitive=False),
     default="claude_code",
     show_default=True,
     help="Analyzer to use",
@@ -54,12 +54,18 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
     type_registry = TypeRegistry()
     if analyzer == "codex":
         analyzer_instance = CodexAnalyzer(verbose=verbose, type_registry=type_registry)
+    elif analyzer == "gemini":
+        analyzer_instance = GeminiAnalyzer(verbose=verbose, type_registry=type_registry)
     else:
         analyzer_instance = ClaudeCodeAnalyzer(verbose=verbose, type_registry=type_registry)
 
     if not analyzer_instance.validate_config():
-        console.print(f"[red]✗ {analyzer_instance.__class__.__name__} CLI not found.[/red]")
-        console.print("Install the CLI and log in to use this analyzer.")
+        if analyzer == "gemini":
+            console.print("[red]✗ Gemini configuration invalid.[/red]")
+            console.print("Ensure google-generativeai is installed and GOOGLE_API_KEY is set.")
+        else:
+            console.print(f"[red]✗ {analyzer_instance.__class__.__name__} CLI not found.[/red]")
+            console.print("Install the CLI and log in to use this analyzer.")
         raise SystemExit(1)
 
     storage = LocalStorage(target_path)
