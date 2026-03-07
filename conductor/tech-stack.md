@@ -17,7 +17,8 @@
 - **aiofiles**: For non-blocking asynchronous file operations, essential for high-performance batch processing.
 
 ## AI & Intelligence
-- **Anthropic (Claude)** & **OpenAI (GPT)**: Multi-model support for intelligent document analysis.
+- **Anthropic (Claude)**, **OpenAI (GPT)** & **Google (Gemini)**: Multi-model support for intelligent document analysis.
+- **Google Generative AI SDK**: For official Gemini model integration.
 - **Plugin Architecture**: Modular design allows for the seamless addition of new AI analyzers and naming strategies.
 
 ## Development & Quality Assurance

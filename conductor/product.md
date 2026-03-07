@@ -13,7 +13,7 @@ Alakazam empowers Home Office Power Users by transforming chaotic document folde
 - **Adaptive Organization**: Learns and suggests new document types, becoming smarter with usage.
 
 ## Functional Goals
-- **AI Analysis**: Supports multiple models (Anthropic, OpenAI) with tunable parameters for optimal accuracy.
+- **AI Analysis**: Supports multiple models (Anthropic, OpenAI, Google Gemini) with tunable parameters for optimal accuracy.
 - **High-Performance Batch Processing**: Optimized for large document sets, ensuring scalability.
 - **Intelligent Tracking**: Prevents reprocessing of already renamed files.
 
