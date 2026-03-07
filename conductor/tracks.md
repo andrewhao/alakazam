@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Extend the codebase to support a Gemini model using Gemini CLI**
+- [x] **Track: Extend the codebase to support a Gemini model using Gemini CLI**
   *Link: [./conductor/tracks/support_gemini_model_20260306/](./conductor/tracks/support_gemini_model_20260306/)*
