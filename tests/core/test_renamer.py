@@ -1,5 +1,6 @@
 """Tests for Alakazam core renamer."""
 
+import time
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -147,3 +148,38 @@ def test_interactive_mode_without_decision_provider_raises_error(tmp_path: Path)
             config=AlakazamConfig(interactive=True),
             decision_provider=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_process_batch_starts_with_most_recently_created_file(tmp_path: Path):
+    """Batch processing should start with the newest-created file."""
+
+    class FakeAnalyzer:
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return {
+                "document_date": "2024-01-01",
+                "document_type": "invoice",
+                "description": "Test document",
+            }
+
+        def validate_config(self) -> bool:
+            return True
+
+    (tmp_path / "older.pdf").write_text("old")
+    time.sleep(0.01)
+    (tmp_path / "newer.pdf").write_text("new")
+
+    log_file = tmp_path / ".alakazam.log"
+    alakazam = Alakazam(
+        analyzer=FakeAnalyzer(),
+        naming_strategy=ISODateNaming(),
+        storage=LocalStorage(tmp_path),
+        tracker=JSONTracker(log_file),
+        type_registry=TypeRegistry(),
+        config=AlakazamConfig(batch_size=1, dry_run=True),
+    )
+
+    result = await alakazam.process_batch()
+
+    assert len(result.files) == 1
+    assert result.files[0].old_name == "newer.pdf"
