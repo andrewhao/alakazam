@@ -72,6 +72,27 @@ def test_cli_rename_uses_codex_analyzer(monkeypatch, tmp_path: Path):
     assert len(instances) == 1
 
 
+def test_cli_rename_uses_gemini_analyzer(monkeypatch, tmp_path: Path):
+    """--analyzer gemini should select GeminiAnalyzer."""
+    (tmp_path / "one.pdf").write_text("fake")
+
+    instances = []
+
+    class FakeGeminiAnalyzer(FakeAnalyzer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            instances.append(self)
+
+    monkeypatch.setattr("alakazam.cli.main.GeminiAnalyzer", FakeGeminiAnalyzer)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--analyzer", "gemini"])
+
+    assert result.exit_code == 0
+    assert "Dry run: 1" in result.output
+    assert len(instances) == 1
+
+
 def test_cli_rename_interactive_dry_run_accepts_default(monkeypatch, tmp_path: Path):
     """Interactive dry-run should accept the default suggestion."""
     (tmp_path / "one.pdf").write_text("fake")
