@@ -8,8 +8,8 @@ This plan outlines the steps to add Google Gemini support to Alakazam.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Environment and Dependencies' (Protocol in workflow.md) de3d170
 
 ## Phase 2: Core Analyzer Implementation
-- [ ] Task: Create `src/alakazam/analyzers/gemini.py` with the `GeminiAnalyzer` class inheriting from `DocumentAnalyzer`.
-- [ ] Task: Write Tests: Create `tests/unit/analyzers/test_gemini_analyzer.py` and implement unit tests that mock the `google-generativeai` SDK.
+- [x] Task: Create `src/alakazam/analyzers/gemini.py` with the `GeminiAnalyzer` class inheriting from `DocumentAnalyzer`. 8c434d9
+- [~] Task: Write Tests: Create `tests/unit/analyzers/test_gemini_analyzer.py` and implement unit tests that mock the `google-generativeai` SDK.
 - [ ] Task: Implement Feature: Implement `GeminiAnalyzer.analyze()` to extract PDF content and call the Gemini API, returning the required JSON structure.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Analyzer Implementation' (Protocol in workflow.md)
 
