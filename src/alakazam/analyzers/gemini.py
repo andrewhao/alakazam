@@ -18,6 +18,7 @@ try:
     import google.generativeai as genai
     HAS_GEMINI = True
 except ImportError:
+    genai = None  # type: ignore
     HAS_GEMINI = False
 
 from alakazam.analyzers.base import DocumentAnalyzer
@@ -175,7 +176,6 @@ class GeminiAnalyzer(DocumentAnalyzer):
     def _call_gemini_sync(self, pdf_path: Path) -> str:
         """Synchronous Gemini API call."""
         model = genai.GenerativeModel(self.model_name)
-        
         # Read PDF as bytes
         with open(pdf_path, "rb") as f:
             pdf_data = f.read()
@@ -227,7 +227,10 @@ class GeminiAnalyzer(DocumentAnalyzer):
         if self.type_registry and hasattr(self.type_registry, "get_all_types"):
             doc_types = ", ".join(sorted(self.type_registry.get_all_types()))
         else:
-            doc_types = "invoice, receipt, medical_statement, tax_document, insurance_claim, bank_statement, contract, letter"
+            doc_types = (
+                "invoice, receipt, medical_statement, tax_document, "
+                "insurance_claim, bank_statement, contract, letter"
+            )
 
         preferences_section = ""
         if self.naming_preferences:
