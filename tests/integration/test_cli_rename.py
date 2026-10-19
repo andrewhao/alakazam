@@ -72,23 +72,51 @@ def test_cli_rename_uses_codex_analyzer(monkeypatch, tmp_path: Path):
     assert len(instances) == 1
 
 
-def test_cli_rename_uses_gemini_analyzer(monkeypatch, tmp_path: Path):
-    """--analyzer gemini should select GeminiAnalyzer."""
+def test_cli_rename_uses_antigravity_analyzer(monkeypatch, tmp_path: Path):
+    """--analyzer antigravity and --analyzer agy should select AntigravityAnalyzer."""
     (tmp_path / "one.pdf").write_text("fake")
 
     instances = []
 
-    class FakeGeminiAnalyzer(FakeAnalyzer):
+    class FakeAntigravityAnalyzer(FakeAnalyzer):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             instances.append(self)
 
-    monkeypatch.setattr("alakazam.cli.main.GeminiAnalyzer", FakeGeminiAnalyzer)
+    monkeypatch.setattr("alakazam.cli.main.AntigravityAnalyzer", FakeAntigravityAnalyzer)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--analyzer", "antigravity"])
+
+    assert result.exit_code == 0
+    assert "Dry run: 1" in result.output
+    assert len(instances) == 1
+
+    # Test 'agy' alias
+    result_agy = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--analyzer", "agy"])
+    assert result_agy.exit_code == 0
+    assert "Dry run: 1" in result_agy.output
+    assert len(instances) == 2
+
+
+def test_cli_rename_uses_gemini_analyzer_alias(monkeypatch, tmp_path: Path):
+    """--analyzer gemini should alias to AntigravityAnalyzer with deprecation notice."""
+    (tmp_path / "one.pdf").write_text("fake")
+
+    instances = []
+
+    class FakeAntigravityAnalyzer(FakeAnalyzer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            instances.append(self)
+
+    monkeypatch.setattr("alakazam.cli.main.AntigravityAnalyzer", FakeAntigravityAnalyzer)
 
     runner = CliRunner()
     result = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--analyzer", "gemini"])
 
     assert result.exit_code == 0
+    assert "Note: 'gemini' is deprecated" in result.output
     assert "Dry run: 1" in result.output
     assert len(instances) == 1
 

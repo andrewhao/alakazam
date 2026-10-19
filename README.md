@@ -18,7 +18,7 @@ Transform chaotic document filenames into organized, meaningful names using AI m
 
 ## Features
 
-- 🧠 **AI-Powered** - Uses Claude, Gemini, GPT, or local models to understand document content
+- 🧠 **AI-Powered** - Uses Claude, Antigravity, GPT, or local models to understand document content
 - 🔌 **Pluggable** - Swap AI providers, naming strategies, and storage backends
 - 📊 **Adaptive Types** - Learns new document types as it encounters them
 - 💰 **Cost-Effective** - Optimizes API usage (analyzes first 3 pages only)
@@ -39,9 +39,6 @@ pip install alakazam[anthropic]
 # With OpenAI support
 pip install alakazam[openai]
 
-# With Gemini support
-pip install alakazam[gemini]
-
 # All features
 pip install alakazam[all]
 ```
@@ -56,7 +53,7 @@ alakazam rename /path/to/documents
 alakazam rename /path/to/documents --dry-run
 
 # Use specific AI provider
-alakazam rename /path/to/documents --analyzer gemini
+alakazam rename /path/to/documents --analyzer antigravity
 
 # Process in batches
 alakazam rename /path/to/documents --batch-size 10 --continuous
@@ -99,9 +96,7 @@ Create `~/.alakazam/config.yaml`:
 
 ```yaml
 analyzer:
-  type: gemini  # or: claude_code, openai, local
-  model: gemini-1.5-flash
-  api_key_env: GOOGLE_API_KEY
+  type: antigravity  # or: claude_code, codex, local
 
 naming:
   strategy: iso_date  # YYYY-MM-DD format
