@@ -7,7 +7,11 @@ import click
 from rich.console import Console
 
 from alakazam import Alakazam
-from alakazam.analyzers import ClaudeCodeAnalyzer, CodexAnalyzer
+from alakazam.analyzers import (
+    AntigravityAnalyzer,
+    ClaudeCodeAnalyzer,
+    CodexAnalyzer,
+)
 from alakazam.core import AlakazamConfig, JSONTracker
 from alakazam.naming import ISODateNaming
 from alakazam.storage import LocalStorage
@@ -32,7 +36,10 @@ def cli():
 @click.option("--interactive", is_flag=True, help="Prompt to confirm or edit names")
 @click.option(
     "--analyzer",
-    type=click.Choice(["claude_code", "codex"], case_sensitive=False),
+    type=click.Choice(
+        ["claude_code", "codex", "antigravity", "agy", "gemini"],
+        case_sensitive=False,
+    ),
     default="claude_code",
     show_default=True,
     help="Analyzer to use",
@@ -54,6 +61,12 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
     type_registry = TypeRegistry()
     if analyzer == "codex":
         analyzer_instance = CodexAnalyzer(verbose=verbose, type_registry=type_registry)
+    elif analyzer in ("antigravity", "agy", "gemini"):
+        if analyzer == "gemini":
+            console.print(
+                "[yellow]Note: 'gemini' is deprecated; using 'antigravity' (agy CLI) analyzer.[/yellow]"
+            )
+        analyzer_instance = AntigravityAnalyzer(verbose=verbose, type_registry=type_registry)
     else:
         analyzer_instance = ClaudeCodeAnalyzer(verbose=verbose, type_registry=type_registry)
 
@@ -131,10 +144,9 @@ def _build_decision_provider(naming_strategy, storage, dry_run: bool):
         Async callback function that takes (file_path, analysis, suggested_name,
         alternative_names) and returns a decision dict with action and chosen_name.
     """
+
     async def decision_provider(file_path, analysis, suggested_name, alternative_names):
-        options = [suggested_name] + [
-            name for name in alternative_names if name != suggested_name
-        ]
+        options = [suggested_name] + [name for name in alternative_names if name != suggested_name]
 
         max_attempts = 10
         attempt = 0
@@ -161,9 +173,7 @@ def _build_decision_provider(naming_strategy, storage, dry_run: bool):
                 }
 
             if choice == "e":
-                edited = click.prompt(
-                    "Enter filename", default=suggested_name, show_default=False
-                )
+                edited = click.prompt("Enter filename", default=suggested_name, show_default=False)
                 edited = str(edited).strip()
                 if not naming_strategy.validate(edited):
                     click.echo("Invalid filename format. Please try again.")
@@ -228,9 +238,7 @@ def _format_override_preferences(overrides):
         suggested = entry.get("suggested_name")
         chosen = entry.get("chosen_name")
         metadata = entry.get("metadata") or {}
-        metadata_bits = ", ".join(
-            f"{key}: {value}" for key, value in metadata.items() if value
-        )
+        metadata_bits = ", ".join(f"{key}: {value}" for key, value in metadata.items() if value)
         meta_suffix = f" ({metadata_bits})" if metadata_bits else ""
         lines.append(f"- Suggested: {suggested} -> Chosen: {chosen}{meta_suffix}")
     return "\n".join(lines)
