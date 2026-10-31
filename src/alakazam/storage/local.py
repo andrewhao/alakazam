@@ -1,8 +1,11 @@
 """Local filesystem storage backend."""
 
-import aiofiles.os
+import asyncio
+import sys
 from pathlib import Path
 from typing import List
+
+import aiofiles.os
 
 from alakazam.storage.base import StorageBackend
 
@@ -14,14 +17,16 @@ class LocalStorage(StorageBackend):
     Handles file operations on the local filesystem.
     """
 
-    def __init__(self, root_path: Path):
+    def __init__(self, root_path: Path, auto_download: bool = False):
         """
         Initialize local storage.
 
         Args:
             root_path: Root directory path
+            auto_download: Whether to automatically materialize cloud-stored files
         """
         self.root = Path(root_path).expanduser().absolute()
+        self.auto_download = auto_download
 
         if not self.root.exists():
             raise FileNotFoundError(f"Root path does not exist: {self.root}")
@@ -66,6 +71,75 @@ class LocalStorage(StorageBackend):
     async def exists(self, path: Path) -> bool:
         """Check if file exists on local filesystem."""
         return path.exists()
+
+    def is_cloud_path(self, path: Path) -> bool:
+        """Check if path is in a macOS CloudStorage or iCloud ubiquitous folder."""
+        path_str = str(path.resolve())
+        return "Library/CloudStorage" in path_str or "Library/Mobile Documents" in path_str
+
+    async def materialize(self, path: Path, timeout: float = 60.0) -> bool:
+        """
+        Ensure file or directory in cloud storage (e.g. macOS FileProvider) is materialized.
+
+        Requests the cloud provider daemon (Google Drive, iCloud, Dropbox, OneDrive)
+        to download the file locally using macOS NSFileManager ubiquitous item APIs.
+
+        Args:
+            path: Target file or directory path
+            timeout: Maximum seconds to wait for file download to complete
+
+        Returns:
+            True if file is available locally, False if timeout or error
+        """
+        target = Path(path)
+        if not target.exists():
+            return False
+
+        if sys.platform != "darwin":
+            return True
+
+        if not self.is_cloud_path(target):
+            return True
+
+        escaped_path = str(target.resolve()).replace('"', '\\"')
+        script = (
+            f"let fm = $.NSFileManager.defaultManager;\n"
+            f'let url = $.NSURL.fileURLWithPath("{escaped_path}");\n'
+            f"fm.startDownloadingUbiquitousItemAtURLError(url, null);"
+        )
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "osascript",
+                "-l",
+                "JavaScript",
+                "-e",
+                script,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await proc.wait()
+        except Exception:
+            pass
+
+        if target.is_file():
+            loop = asyncio.get_running_loop()
+
+            def _touch_read() -> bool:
+                try:
+                    with open(target, "rb") as f:
+                        f.read(1)
+                    return True
+                except Exception:
+                    return False
+
+            try:
+                return await asyncio.wait_for(
+                    loop.run_in_executor(None, _touch_read), timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                return False
+
+        return True
 
     def __repr__(self) -> str:
         return f"LocalStorage(root={self.root})"

@@ -93,6 +93,7 @@ class JSONTracker(FileTracker):
             "new_name": new_name,
             "document_date": analysis.get('document_date'),
             "document_type": analysis.get('document_type'),
+            "document_source": analysis.get('document_source'),
             "description": analysis.get('description'),
         }
 

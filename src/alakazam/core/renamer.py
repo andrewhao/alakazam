@@ -26,6 +26,7 @@ class AlakazamConfig:
     max_batches: int = 1000
     verbose: bool = False
     interactive: bool = False
+    auto_download: bool = False
 
 
 @dataclass
@@ -83,9 +84,7 @@ class Alakazam:
 
         # Validate configuration
         if self.config.interactive and decision_provider is None:
-            raise ValueError(
-                "decision_provider is required when config.interactive=True"
-            )
+            raise ValueError("decision_provider is required when config.interactive=True")
 
     async def process_batch(self, batch_size: Optional[int] = None) -> ProcessingResult:
         """
@@ -131,6 +130,17 @@ class Alakazam:
     async def _process_file(self, file_path: Path) -> FileResult:
         """Process a single file."""
         try:
+            # 0. Ensure cloud file is materialized if auto_download is enabled
+            if self.config.auto_download:
+                if self.config.verbose:
+                    print(f"  Ensuring cloud file is downloaded: {file_path.name}")
+                downloaded = await self.storage.materialize(file_path)
+                if not downloaded:
+                    return FileResult.error(
+                        file_path.name,
+                        "Failed to download cloud file (timeout or network error)",
+                    )
+
             # 1. Analyze document
             if self.config.verbose:
                 print(f"  Analyzing: {file_path.name}")
@@ -147,11 +157,11 @@ class Alakazam:
                 )
 
             # 2. Check document type
-            doc_type = analysis.get('document_type', 'unknown')
+            doc_type = analysis.get("document_type", "unknown")
             if not self.types.is_standard(doc_type):
                 if self.config.verbose:
                     print(f"   💡 New document type suggested: '{doc_type}'")
-                self.types.register_suggestion(doc_type, analysis.get('new_filename', ''))
+                self.types.register_suggestion(doc_type, analysis.get("new_filename", ""))
 
             # 3. Generate new filename
             suggested_name = self.naming.generate_filename(analysis, file_path.name)
@@ -230,10 +240,13 @@ class Alakazam:
                     print(f"  [DRY RUN] Would rename to: {new_name}\n")
                 return FileResult.dry_run(file_path.name, new_name)
 
-            # 5. Check for collisions
+            # 5. Check for collisions and disambiguate duplicates
             new_path = file_path.parent / new_name
             if await self.storage.exists(new_path):
-                return FileResult.error(file_path.name, f"File exists: {new_name}")
+                new_name = await self._resolve_collision(file_path.parent, new_name)
+                new_path = file_path.parent / new_name
+                if await self.storage.exists(new_path):
+                    return FileResult.error(file_path.name, f"File exists: {new_name}")
 
             # 6. Rename file
             await self.storage.rename(file_path, new_name)
@@ -251,6 +264,21 @@ class Alakazam:
             if self.config.verbose:
                 print(f"    ❌ Error: {e}\n")
             return FileResult.error(file_path.name, str(e))
+
+    async def _resolve_collision(self, parent_dir: Path, filename: str) -> str:
+        """Append (Duplicate) or (Duplicate N) when a target filename already exists."""
+        stem = Path(filename).stem
+        ext = Path(filename).suffix
+        max_len = getattr(self.naming, "max_length", 80)
+
+        for idx in range(1, 20):
+            suffix = " (Duplicate)" if idx == 1 else f" (Duplicate {idx})"
+            allowed_stem_len = max_len - len(suffix) - len(ext)
+            trimmed_stem = stem[:allowed_stem_len].rstrip()
+            candidate = f"{trimmed_stem}{suffix}{ext}"
+            if not await self.storage.exists(parent_dir / candidate):
+                return candidate
+        return filename
 
     async def process_continuous(self) -> List[ProcessingResult]:
         """
@@ -272,9 +300,7 @@ class Alakazam:
             batch_num += 1
 
             if self.config.verbose:
-                print(
-                    f"\nBatch {batch_num} complete: {result.success_count} file(s) processed\n"
-                )
+                print(f"\nBatch {batch_num} complete: {result.success_count} file(s) processed\n")
 
         return results
 
