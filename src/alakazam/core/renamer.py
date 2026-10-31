@@ -274,7 +274,15 @@ class Alakazam:
         for idx in range(1, 20):
             suffix = " (Duplicate)" if idx == 1 else f" (Duplicate {idx})"
             allowed_stem_len = max_len - len(suffix) - len(ext)
-            trimmed_stem = stem[:allowed_stem_len].rstrip()
+            if len(stem) > allowed_stem_len:
+                trimmed_stem = stem[:allowed_stem_len]
+                if stem[allowed_stem_len] != " ":
+                    last_space = trimmed_stem.rfind(" ")
+                    if last_space > allowed_stem_len // 2:
+                        trimmed_stem = trimmed_stem[:last_space]
+                trimmed_stem = trimmed_stem.rstrip()
+            else:
+                trimmed_stem = stem
             candidate = f"{trimmed_stem}{suffix}{ext}"
             if not await self.storage.exists(parent_dir / candidate):
                 return candidate
