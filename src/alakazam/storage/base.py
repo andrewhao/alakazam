@@ -56,5 +56,18 @@ class StorageBackend(ABC):
         """
         pass
 
+    async def materialize(self, path: Path, timeout: float = 60.0) -> bool:
+        """
+        Ensure file is downloaded locally if stored in cloud storage.
+
+        Args:
+            path: Path to file or folder
+            timeout: Timeout in seconds for download
+
+        Returns:
+            True if file is available locally, False if timeout or error
+        """
+        return True
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"

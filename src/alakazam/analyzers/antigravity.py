@@ -312,9 +312,13 @@ class AntigravityAnalyzer(DocumentAnalyzer):
    (e.g., "medical_prescription", "employment_contract", "warranty_document").
    Choose existing types when possible to maintain consistency.
 
-3. **Suggested Filename**: Following the format "YYYY-MM-DD <descriptive name>.pdf"
+3. **Document Source / Author**: Identify the issuing organization, company, institution, merchant, or author of the document (e.g., "Delta Dental", "State University", "Oak Creek PTA", "ClearView Optometry").
+
+4. **Suggested Filename**: Following the format "YYYY-MM-DD <Source/Author> <Document Type> <Recipient/Details>.pdf"
    - Use the document date, not the scan date
-   - Include document type, company/provider name, and key identifiers
+   - ALWAYS place the document source/author/organization immediately after the date so it is prominently highlighted and never truncated
+   - Include document type and key identifiers (e.g., recipient name, form/invoice number)
+   - Write a concise title, NOT a prose sentence (avoid filler words like "from", "for", "regarding", "submitted to", "reporting")
    - Keep under 80 characters
    - Use title case
    - Examples:
@@ -322,15 +326,14 @@ class AntigravityAnalyzer(DocumentAnalyzer):
      * "2022-09-02 Delta Dental Welcome Letter Andrew Hao.pdf"
      * "2022-08-30 Future Automotive Service Order Andrew Hao.pdf"
 
-4. **Metadata**: Extract relevant fields like:
-   - provider/company name
+5. **Metadata**: Extract relevant fields like:
+   - provider_name / organization / author
    - patient/customer/recipient name
    - amounts, invoice numbers, claim numbers, etc.
    - any other relevant identifying information
 
-5. **Alternative Filenames**: Provide 2-3 alternative filename suggestions
-   - Must be valid filenames and follow the same format
-   - Keep under 80 characters
+6. **Alternative Filenames**: Provide 2-3 alternative filename suggestions
+   - Must be valid filenames, start with "YYYY-MM-DD <Source/Author> ...", and keep under 80 characters
    - Make them meaningfully different (e.g., include/exclude a person name or ID)
 
 {preferences_section}
@@ -340,13 +343,15 @@ Return your response in this exact JSON format (no other text):
 {{
   "document_date": "YYYY-MM-DD",
   "document_type": "category",
-  "new_filename": "YYYY-MM-DD Descriptive Name.pdf",
+  "document_source": "Issuing Organization or Author",
+  "new_filename": "YYYY-MM-DD Source Name Document Type Details.pdf",
   "description": "Brief human-readable description",
   "alternative_filenames": [
-    "YYYY-MM-DD Alternate Name.pdf",
-    "YYYY-MM-DD Another Variant.pdf"
+    "YYYY-MM-DD Source Name Alternate Name.pdf",
+    "YYYY-MM-DD Source Name Another Variant.pdf"
   ],
   "metadata": {{
+    "provider_name": "Issuing Organization or Author",
     "key": "value"
   }}
 }}

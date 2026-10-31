@@ -24,6 +24,7 @@ class TestAlakazamConfig:
         assert config.safe_mode is False
         assert config.max_batches == 1000
         assert config.verbose is False
+        assert config.auto_download is False
 
     def test_config_with_custom_values(self):
         """Test AlakazamConfig with custom values."""
@@ -32,13 +33,15 @@ class TestAlakazamConfig:
             dry_run=True,
             safe_mode=True,
             max_batches=100,
-            verbose=True
+            verbose=True,
+            auto_download=True,
         )
         assert config.batch_size == 10
         assert config.dry_run is True
         assert config.safe_mode is True
         assert config.max_batches == 100
         assert config.verbose is True
+        assert config.auto_download is True
 
     def test_config_class_name_spelling(self):
         """Verify the class name is spelled correctly (Alakazam not Alazazam)."""
@@ -183,3 +186,76 @@ async def test_process_batch_starts_with_most_recently_created_file(tmp_path: Pa
 
     assert len(result.files) == 1
     assert result.files[0].old_name == "newer.pdf"
+
+
+@pytest.mark.asyncio
+async def test_process_file_auto_download_materializes_file(tmp_path: Path):
+    """Auto download should call storage.materialize before analysis."""
+
+    materialized = []
+
+    class FakeStorage(LocalStorage):
+        async def materialize(self, path: Path, timeout: float = 60.0) -> bool:
+            materialized.append(path)
+            return True
+
+    class FakeAnalyzer:
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return {
+                "document_date": "2024-01-01",
+                "document_type": "invoice",
+                "description": "Test doc",
+            }
+
+        def validate_config(self) -> bool:
+            return True
+
+    sample = tmp_path / "test.pdf"
+    sample.write_text("dummy")
+
+    log_file = tmp_path / ".alakazam.log"
+    alakazam = Alakazam(
+        analyzer=FakeAnalyzer(),
+        naming_strategy=ISODateNaming(),
+        storage=FakeStorage(tmp_path),
+        tracker=JSONTracker(log_file),
+        type_registry=TypeRegistry(),
+        config=AlakazamConfig(auto_download=True, dry_run=True),
+    )
+
+    result = await alakazam.process_batch()
+    assert result.dry_run_count == 1
+    assert sample in materialized
+
+
+@pytest.mark.asyncio
+async def test_process_file_auto_download_fails_gracefully(tmp_path: Path):
+    """If materialization fails, file result should report an error."""
+
+    class FailingStorage(LocalStorage):
+        async def materialize(self, path: Path, timeout: float = 60.0) -> bool:
+            return False
+
+    class FakeAnalyzer:
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return None
+
+        def validate_config(self) -> bool:
+            return True
+
+    sample = tmp_path / "test.pdf"
+    sample.write_text("dummy")
+
+    log_file = tmp_path / ".alakazam.log"
+    alakazam = Alakazam(
+        analyzer=FakeAnalyzer(),
+        naming_strategy=ISODateNaming(),
+        storage=FailingStorage(tmp_path),
+        tracker=JSONTracker(log_file),
+        type_registry=TypeRegistry(),
+        config=AlakazamConfig(auto_download=True, dry_run=True),
+    )
+
+    result = await alakazam.process_batch()
+    assert result.error_count == 1
+    assert "Failed to download cloud file" in result.files[0].error

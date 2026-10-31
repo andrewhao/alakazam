@@ -44,7 +44,12 @@ def cli():
     show_default=True,
     help="Analyzer to use",
 )
-def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer):
+@click.option(
+    "--auto-download",
+    is_flag=True,
+    help="Automatically download cloud-stored files (e.g. Google Drive, iCloud, Dropbox) before processing",
+)
+def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer, auto_download):
     """Rename documents in PATH using AI analysis."""
     console.print("\n[bold cyan]✨ Alakazam - AI Document Renamer[/bold cyan]\n")
 
@@ -56,7 +61,8 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
     console.print(f"Batch size: {batch_size}")
     console.print(f"Dry run: {dry_run}")
     console.print(f"Verbose: {verbose}")
-    console.print(f"Continuous: {continuous}\n")
+    console.print(f"Continuous: {continuous}")
+    console.print(f"Auto download: {auto_download}\n")
 
     type_registry = TypeRegistry()
     if analyzer == "codex":
@@ -75,7 +81,12 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
         console.print("Install the CLI and log in to use this analyzer.")
         raise SystemExit(1)
 
-    storage = LocalStorage(target_path)
+    storage = LocalStorage(target_path, auto_download=auto_download)
+    if auto_download and log_file.exists():
+        is_dataless = bool(getattr(log_file.stat(), "st_flags", 0) & 0x40000000)
+        if is_dataless:
+            asyncio.run(storage.materialize(log_file))
+
     tracker = JSONTracker(log_file)
 
     config = AlakazamConfig(
@@ -83,6 +94,7 @@ def rename(path, batch_size, dry_run, verbose, continuous, interactive, analyzer
         dry_run=dry_run,
         verbose=verbose,
         interactive=interactive,
+        auto_download=auto_download,
     )
     naming_strategy = ISODateNaming(max_length=80, title_case=True)
     decision_provider = None
@@ -264,6 +276,194 @@ def types_list():
 def types_review():
     """Review suggested document types."""
     console.print("\n[yellow]Feature coming soon![/yellow]\n")
+
+
+@cli.command("eval")
+@click.option(
+    "--log-file",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Evaluate recent rename entries from a .alakazam.log file",
+)
+@click.option(
+    "--live-dir",
+    type=click.Path(exists=True, file_okay=False),
+    default=None,
+    help="Run live analyzer on PDFs in a directory and evaluate the generated filenames",
+)
+@click.option(
+    "--limit",
+    "-n",
+    default=10,
+    show_default=True,
+    help="Maximum number of log entries or live PDFs to evaluate",
+)
+@click.option(
+    "--analyzer",
+    type=click.Choice(
+        ["claude_code", "codex", "antigravity", "agy", "gemini"],
+        case_sensitive=False,
+    ),
+    default="antigravity",
+    show_default=True,
+    help="Analyzer to use for --live-dir or --llm-judge",
+)
+@click.option(
+    "--llm-judge",
+    is_flag=True,
+    help="Also grade each filename (1-5 scale) using an LLM-as-a-Judge",
+)
+@click.option(
+    "--use-recorded",
+    is_flag=True,
+    help="When using --log-file, evaluate the historically recorded new_name instead of regenerating via ISODateNaming",
+)
+def run_eval(log_file, live_dir, limit, analyzer, llm_judge, use_recorded):
+    """Evaluate generated filenames for source/author prominence and naming quality."""
+    from rich.table import Table
+    from alakazam.evals import (
+        EvalSuiteResult,
+        FilenameEvaluator,
+        GOLDEN_DATASET,
+        LLMJudgeEvaluator,
+        load_eval_cases_from_log,
+    )
+
+    console.print("\n[bold cyan]✨ Alakazam - Filename Quality Evals[/bold cyan]\n")
+
+    evaluator = FilenameEvaluator(max_length=80)
+    judge_cmd = "agy" if analyzer in ("antigravity", "agy", "gemini") else (
+        "codex" if analyzer == "codex" else "claude"
+    )
+    judge = LLMJudgeEvaluator(cli_cmd=judge_cmd) if llm_judge else None
+
+    async def _execute_evals():
+        cases_to_run = []
+
+        if live_dir:
+            target_dir = Path(live_dir).expanduser().absolute()
+            pdfs = sorted(target_dir.glob("*.pdf"))[:limit]
+            type_registry = TypeRegistry()
+            if analyzer == "codex":
+                analyzer_inst = CodexAnalyzer(verbose=False, type_registry=type_registry)
+            elif analyzer in ("antigravity", "agy", "gemini"):
+                analyzer_inst = AntigravityAnalyzer(verbose=False, type_registry=type_registry)
+            else:
+                analyzer_inst = ClaudeCodeAnalyzer(verbose=False, type_registry=type_registry)
+
+            for idx, pdf_path in enumerate(pdfs, 1):
+                console.print(f"  Analyzing [{idx}/{len(pdfs)}]: {pdf_path.name}...")
+                analysis = await analyzer_inst.analyze(pdf_path)
+                if not analysis:
+                    continue
+                cases_to_run.append(
+                    {
+                        "id": pdf_path.stem[:28],
+                        "original_filename": pdf_path.name,
+                        "expected_sources": [],
+                        "analysis": analysis,
+                        "generated_filename": None,
+                    }
+                )
+        elif log_file:
+            loaded = load_eval_cases_from_log(Path(log_file), limit=limit)
+            for item in loaded:
+                cases_to_run.append(
+                    {
+                        "id": item["id"],
+                        "original_filename": item["original_filename"],
+                        "expected_sources": item["expected_sources"],
+                        "analysis": item["analysis"],
+                        "generated_filename": item["recorded_filename"] if use_recorded else None,
+                    }
+                )
+        else:
+            for item in GOLDEN_DATASET:
+                cases_to_run.append(
+                    {
+                        "id": item["id"],
+                        "original_filename": item["original_filename"],
+                        "expected_sources": item["expected_sources"],
+                        "analysis": item["analysis"],
+                        "generated_filename": None,
+                    }
+                )
+
+        results = []
+        for item in cases_to_run:
+            case_res = evaluator.evaluate_case(
+                case_id=item["id"],
+                analysis=item["analysis"],
+                original_filename=item["original_filename"],
+                generated_filename=item["generated_filename"],
+                expected_sources=item["expected_sources"],
+            )
+            if judge:
+                judge_res = await judge.score_filename(
+                    item["analysis"], case_res.generated_filename
+                )
+                case_res.judge_score = judge_res.get("score")
+                case_res.judge_reasoning = judge_res.get("reasoning")
+            results.append(case_res)
+
+        return EvalSuiteResult(cases=results)
+
+    suite = asyncio.run(_execute_evals())
+
+    table = Table(title="Filename Evaluation Results", show_lines=True)
+    table.add_column("Case", style="cyan", no_wrap=True)
+    table.add_column("Generated Filename", style="white")
+    table.add_column("Source", justify="center")
+    table.add_column("Prominent", justify="center")
+    table.add_column("Clean End", justify="center")
+    table.add_column("Score", justify="right")
+    if llm_judge:
+        table.add_column("LLM Judge", justify="right")
+
+    for case in suite.cases:
+        check_map = {c.name: c for c in case.checks}
+        src_ok = "✓" if check_map["source_present"].passed else "[red]✗[/red]"
+        prom_ok = "✓" if check_map["source_prominent"].passed else "[red]✗[/red]"
+        trunc_ok = (
+            "✓"
+            if (check_map["no_dangling_truncation"].passed and check_map["concise_title"].passed)
+            else "[red]✗[/red]"
+        )
+        score_str = (
+            f"[green]{case.score * 100:.0f}%[/green]"
+            if case.passed
+            else f"[red]{case.score * 100:.0f}%[/red]"
+        )
+        row = [
+            case.case_id,
+            case.generated_filename,
+            src_ok,
+            prom_ok,
+            trunc_ok,
+            score_str,
+        ]
+        if llm_judge:
+            j_str = f"{case.judge_score:.1f}/5" if case.judge_score is not None else "N/A"
+            row.append(j_str)
+        table.add_row(*row)
+
+    console.print(table)
+    console.print(
+        f"\n[bold]Summary:[/bold] {suite.passed_count}/{suite.total} passed "
+        f"({suite.pass_rate * 100:.1f}%) | Avg Rubric Score: {suite.average_score * 100:.1f}%"
+    )
+    if suite.average_judge_score is not None:
+        console.print(f"[bold]Avg LLM Judge Score:[/bold] {suite.average_judge_score:.2f} / 5.00")
+
+    if suite.failed_count > 0:
+        console.print("\n[yellow]Failed Checks Detail:[/yellow]")
+        for case in suite.cases:
+            if not case.passed:
+                failed_reasons = [f"{c.name}: {c.reason}" for c in case.checks if not c.passed]
+                console.print(f"  • [bold]{case.case_id}[/bold] ({case.generated_filename}):")
+                for r in failed_reasons:
+                    console.print(f"      - {r}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

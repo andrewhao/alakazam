@@ -154,3 +154,32 @@ def test_cli_rename_interactive_dry_run_accepts_default(monkeypatch, tmp_path: P
 
     assert result.exit_code == 0
     assert "Dry run: 2" in result.output
+
+
+def test_cli_rename_supports_auto_download_flag(monkeypatch, tmp_path: Path):
+    """Rename command should accept --auto-download flag."""
+    (tmp_path / "one.pdf").write_text("fake")
+
+    class FakeAnalyzer:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def analyze(self, document_path: Path) -> Optional[Dict]:
+            return {
+                "document_date": "2024-01-15",
+                "document_type": "invoice",
+                "new_filename": "2024-01-15 Test.pdf",
+                "description": "Test",
+            }
+
+        def validate_config(self) -> bool:
+            return True
+
+    monkeypatch.setattr("alakazam.cli.main.ClaudeCodeAnalyzer", FakeAnalyzer)
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["rename", str(tmp_path), "--dry-run", "--auto-download"])
+
+    assert result.exit_code == 0
+    assert "Auto download: True" in result.output
+    assert "Dry run: 1" in result.output

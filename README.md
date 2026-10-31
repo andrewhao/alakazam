@@ -55,6 +55,9 @@ alakazam rename /path/to/documents --dry-run
 # Use specific AI provider
 alakazam rename /path/to/documents --analyzer antigravity
 
+# Automatically download cloud-stored files (Google Drive, iCloud, Dropbox)
+alakazam rename /path/to/documents --auto-download
+
 # Process in batches
 alakazam rename /path/to/documents --batch-size 10 --continuous
 ```
@@ -163,6 +166,11 @@ class SemanticNaming(NamingStrategy):
 ```bash
 # Rename documents
 alakazam rename <path> [options]
+
+# Run filename quality evaluations
+alakazam eval                                     # Run synthetic golden dataset evals
+alakazam eval --log-file <path/.alakazam.log>     # Audit log entries against rubric
+alakazam eval --llm-judge                         # Include LLM-as-a-Judge autorater
 
 # Review document types
 alakazam types list           # Show all types
